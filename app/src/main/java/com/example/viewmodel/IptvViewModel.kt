@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.local.AccountEntity
 import com.example.data.local.ChannelEntity
 import com.example.data.local.PlaylistConfig
 import com.example.data.repository.IptvRepository
@@ -26,7 +27,21 @@ class IptvViewModel(
             initialValue = PlaylistConfig()
         )
 
+    val accountsList: StateFlow<List<AccountEntity>> = repository.accountsFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     val rawLiveChannels: StateFlow<List<ChannelEntity>> = repository.getLiveChannels()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val recentLiveChannels: StateFlow<List<ChannelEntity>> = repository.getRecentLiveChannels()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -41,6 +56,20 @@ class IptvViewModel(
         )
 
     val seriesChannels: StateFlow<List<ChannelEntity>> = repository.getSeriesChannels()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val continueWatching: StateFlow<List<ChannelEntity>> = repository.getContinueWatching()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val watchlist: StateFlow<List<ChannelEntity>> = repository.getWatchlist()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -65,6 +94,9 @@ class IptvViewModel(
     private val _currentPlayingChannel = MutableStateFlow<ChannelEntity?>(null)
     val currentPlayingChannel = _currentPlayingChannel.asStateFlow()
 
+    private val _previousPlayingChannel = MutableStateFlow<ChannelEntity?>(null)
+    val previousPlayingChannel = _previousPlayingChannel.asStateFlow()
+
     // Multi-View State
     private val _isMultiViewActive = MutableStateFlow(false)
     val isMultiViewActive = _isMultiViewActive.asStateFlow()
@@ -77,6 +109,13 @@ class IptvViewModel(
 
     private val _activeAudioSlotIndex = MutableStateFlow(0)
     val activeAudioSlotIndex = _activeAudioSlotIndex.asStateFlow()
+
+    // Connection Health / Ping Test state
+    private val _isPinging = MutableStateFlow(false)
+    val isPinging = _isPinging.asStateFlow()
+
+    private val _pingResult = MutableStateFlow<Pair<Boolean, Long>?>(null)
+    val pingResult = _pingResult.asStateFlow()
 
     // Filtered Live channels based on Category and Search
     val filteredLiveChannels: StateFlow<List<ChannelEntity>> = combine(
@@ -117,16 +156,90 @@ class IptvViewModel(
     }
 
     fun playChannel(channel: ChannelEntity) {
+        val current = _currentPlayingChannel.value
+        if (current != null && current.id != channel.id) {
+            _previousPlayingChannel.value = current
+        }
         _currentPlayingChannel.value = channel
+        viewModelScope.launch {
+            repository.recordChannelWatched(channel.id)
+        }
     }
 
     fun stopPlayback() {
         _currentPlayingChannel.value = null
     }
 
+    // Channel Zapping (Next / Previous)
+    fun playNextChannel() {
+        val current = _currentPlayingChannel.value ?: return
+        val list = filteredLiveChannels.value.ifEmpty { rawLiveChannels.value }
+        if (list.isEmpty()) return
+        val currentIndex = list.indexOfFirst { it.id == current.id }
+        val nextIndex = if (currentIndex == -1 || currentIndex >= list.size - 1) 0 else currentIndex + 1
+        playChannel(list[nextIndex])
+    }
+
+    fun playPreviousChannel() {
+        val current = _currentPlayingChannel.value ?: return
+        val list = filteredLiveChannels.value.ifEmpty { rawLiveChannels.value }
+        if (list.isEmpty()) return
+        val currentIndex = list.indexOfFirst { it.id == current.id }
+        val prevIndex = if (currentIndex <= 0) list.size - 1 else currentIndex - 1
+        playChannel(list[prevIndex])
+    }
+
+    // Recall (Last Channel)
+    fun recallLastChannel() {
+        val prev = _previousPlayingChannel.value
+        if (prev != null) {
+            playChannel(prev)
+        }
+    }
+
+    // Direct Jump by Channel Number
+    fun jumpToChannelNumber(number: Int) {
+        val list = rawLiveChannels.value
+        val channel = list.find { it.channelNumber == number }
+            ?: list.getOrNull(number - 1)
+        if (channel != null) {
+            playChannel(channel)
+        }
+    }
+
     fun toggleFavorite(channel: ChannelEntity) {
         viewModelScope.launch {
             repository.toggleFavorite(channel.id, channel.isFavorite)
+        }
+    }
+
+    fun toggleWatchlist(channel: ChannelEntity) {
+        viewModelScope.launch {
+            repository.toggleWatchlist(channel.id, channel.isWatchlist)
+        }
+    }
+
+    fun setWatched(channel: ChannelEntity, isWatched: Boolean) {
+        viewModelScope.launch {
+            repository.setWatched(channel.id, isWatched)
+        }
+    }
+
+    fun updateResumePosition(channelId: String, positionMs: Long, durationMs: Long) {
+        viewModelScope.launch {
+            repository.updateResumePosition(channelId, positionMs, durationMs)
+        }
+    }
+
+    fun renameChannel(channelId: String, newName: String) {
+        viewModelScope.launch {
+            repository.renameChannel(channelId, newName)
+        }
+    }
+
+    fun setChannelLocked(channelId: String, isLocked: Boolean) {
+        viewModelScope.launch {
+            repository.setChannelLocked(channelId, isLocked)
         }
     }
 
@@ -231,6 +344,90 @@ class IptvViewModel(
         }
     }
 
+    // Stalker Portal Loader
+    fun loadStalkerPortal(portalUrl: String, macAddress: String, name: String, expirationMillis: Long) {
+        if (portalUrl.isBlank() || macAddress.isBlank()) {
+            _errorMessage.value = "Lütfen Portal URL ve MAC adresini girin."
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _loadingMessage.value = "Stalker Portal sunucusuna bağlanılıyor..."
+            _errorMessage.value = null
+
+            val result = repository.loadStalkerPortal(portalUrl, macAddress, name, expirationMillis)
+            _isLoading.value = false
+            result.onFailure {
+                _errorMessage.value = it.localizedMessage ?: "Stalker Portal bağlantısı başarısız oldu"
+            }
+        }
+    }
+
+    // Switch Account
+    fun switchAccount(account: AccountEntity) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _loadingMessage.value = "${account.name} profiline geçiliyor..."
+            val res = repository.switchAccount(account)
+            _isLoading.value = false
+            res.onFailure {
+                _errorMessage.value = it.localizedMessage ?: "Hesap değiştirilemedi"
+            }
+        }
+    }
+
+    // Delete Account
+    fun deleteAccount(accountId: String) {
+        viewModelScope.launch {
+            repository.deleteAccount(accountId)
+        }
+    }
+
+    // Connection Health / Latency Test
+    fun testConnectionHealth(url: String) {
+        if (url.isBlank()) return
+        viewModelScope.launch {
+            _isPinging.value = true
+            _pingResult.value = null
+            val result = repository.testConnectionHealth(url)
+            _pingResult.value = result
+            _isPinging.value = false
+        }
+    }
+
+    // Settings actions
+    fun setUserAgent(ua: String) {
+        viewModelScope.launch { repository.setUserAgent(ua) }
+    }
+
+    fun setBufferSeconds(sec: Int) {
+        viewModelScope.launch { repository.setBufferSeconds(sec) }
+    }
+
+    fun setParentalPin(pin: String) {
+        viewModelScope.launch { repository.setParentalPin(pin) }
+    }
+
+    fun setLockedCategories(categories: Set<String>) {
+        viewModelScope.launch { repository.setLockedCategories(categories) }
+    }
+
+    fun setCustomEpgUrl(url: String) {
+        viewModelScope.launch { repository.setCustomEpgUrl(url) }
+    }
+
+    fun setSubtitleSizeSp(size: Int) {
+        viewModelScope.launch { repository.setSubtitleSizeSp(size) }
+    }
+
+    fun setAutoNextEpisode(enabled: Boolean) {
+        viewModelScope.launch { repository.setAutoNextEpisode(enabled) }
+    }
+
+    fun setResumePlaybackEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setResumePlaybackEnabled(enabled) }
+    }
+
     // Demo Streams Loader
     fun loadDemoStreams() {
         viewModelScope.launch {
@@ -292,13 +489,6 @@ class IptvViewModel(
         }
     }
 
-    fun updateSubscriptionExpiration(newExpirationMillis: Long) {
-        viewModelScope.launch {
-            repository.playlistConfig // trigger save
-            // update in repository
-        }
-    }
-
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             repository.setThemeMode(mode)
@@ -308,6 +498,7 @@ class IptvViewModel(
     fun logout() {
         viewModelScope.launch {
             _currentPlayingChannel.value = null
+            _previousPlayingChannel.value = null
             _isMultiViewActive.value = false
             repository.clearAll()
         }
