@@ -21,18 +21,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.LocalMovies
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.SettingsBrightness
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.LocalMovies
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -59,12 +65,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.local.PlaylistConfig
 import com.example.ui.components.LiveClock
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CyanPrimary
-import com.example.ui.theme.DarkBg
-import com.example.ui.theme.DarkCardBorder
-import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.RedAccent
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -95,7 +99,7 @@ fun MainScreen(
     val activeAudioSlotIndex by viewModel.activeAudioSlotIndex.collectAsState()
     val multiViewMode by viewModel.multiViewMode.collectAsState()
 
-    var selectedNavTab by remember { mutableIntStateOf(0) } // 0: Canlı TV, 1: Filmler, 2: Diziler
+    var selectedNavTab by remember { mutableIntStateOf(0) } // 0: Canlı TV, 1: VOD (Filmler), 2: Diziler
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -130,14 +134,14 @@ fun MainScreen(
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .background(DarkBg),
+            .background(MaterialTheme.colorScheme.background),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(DarkSurface)
-                    .border(1.dp, DarkCardBorder)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 // Header Bar
                 Row(
@@ -147,58 +151,92 @@ fun MainScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Logo and Title
+                    // Logo and Title (ZANA IPTV)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(38.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
                                     Brush.linearGradient(listOf(CyanPrimary, VioletSecondary))
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Tv, contentDescription = null, tint = Color.Black, modifier = Modifier.size(20.dp))
+                            Icon(
+                                Icons.Default.Tv,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
 
                         Column {
                             Text(
-                                text = "NOVA IPTV",
-                                color = TextPrimary,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = "ZANA IPTV",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 0.5.sp
                             )
                             Text(
                                 text = config.name.ifBlank { "Aktif Playlist" },
-                                color = TextMuted,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp,
                                 maxLines = 1
                             )
                         }
                     }
 
-                    // Live Clock & Logout/Switch button
+                    // Live Clock, Theme Switcher & Logout
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         LiveClock(compact = true, showDate = true)
 
+                        // Karanlık veya Sistem Teması Seçeneği
+                        IconButton(
+                            onClick = {
+                                val nextMode = if (config.themeMode == PlaylistConfig.THEME_DARK) {
+                                    PlaylistConfig.THEME_SYSTEM
+                                } else {
+                                    PlaylistConfig.THEME_DARK
+                                }
+                                viewModel.setThemeMode(nextMode)
+                                scope.launch {
+                                    val modeName = if (nextMode == PlaylistConfig.THEME_DARK) "Karanlık Tema" else "Sistem Teması"
+                                    snackbarHostState.showSnackbar("Tema değiştirildi: $modeName")
+                                }
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .testTag("theme_toggle_button")
+                        ) {
+                            Icon(
+                                imageVector = if (config.themeMode == PlaylistConfig.THEME_DARK) Icons.Default.DarkMode else Icons.Default.SettingsBrightness,
+                                contentDescription = "Tema Değiştir",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
                         IconButton(
                             onClick = { showLogoutDialog = true },
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(Color(0xFF1E2638), CircleShape)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .testTag("logout_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ExitToApp,
                                 contentDescription = "Playlist Değiştir / Çıkış",
-                                tint = TextSecondary,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -243,12 +281,12 @@ fun MainScreen(
         },
         bottomBar = {
             NavigationBar(
-                containerColor = DarkSurface,
-                contentColor = CyanPrimary,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
                 tonalElevation = 8.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, DarkCardBorder)
+                    .border(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 // 1) Canlı TV
                 NavigationBarItem(
@@ -260,36 +298,46 @@ fun MainScreen(
                             contentDescription = "Canlı TV"
                         )
                     },
-                    label = { Text("Canlı TV", fontWeight = if (selectedNavTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                    label = {
+                        Text(
+                            text = "Canlı TV",
+                            fontWeight = if (selectedNavTab == 0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = CyanPrimary,
-                        indicatorColor = CyanPrimary,
-                        unselectedIconColor = TextMuted,
-                        unselectedTextColor = TextMuted
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     modifier = Modifier.testTag("nav_live_tv")
                 )
 
-                // 2) Filmler
+                // 2) AYRI VOD BÖLÜMÜ (Video on Demand - Filmler)
                 NavigationBarItem(
                     selected = selectedNavTab == 1,
                     onClick = { selectedNavTab = 1 },
                     icon = {
                         Icon(
-                            imageVector = if (selectedNavTab == 1) Icons.Default.Movie else Icons.Outlined.Movie,
-                            contentDescription = "Filmler"
+                            imageVector = if (selectedNavTab == 1) Icons.Default.LocalMovies else Icons.Outlined.LocalMovies,
+                            contentDescription = "VOD (Filmler)"
                         )
                     },
-                    label = { Text("Filmler", fontWeight = if (selectedNavTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                    label = {
+                        Text(
+                            text = "VOD (Filmler)",
+                            fontWeight = if (selectedNavTab == 1) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = CyanPrimary,
-                        indicatorColor = CyanPrimary,
-                        unselectedIconColor = TextMuted,
-                        unselectedTextColor = TextMuted
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
-                    modifier = Modifier.testTag("nav_movies")
+                    modifier = Modifier.testTag("nav_vod")
                 )
 
                 // 3) Diziler
@@ -302,13 +350,18 @@ fun MainScreen(
                             contentDescription = "Diziler"
                         )
                     },
-                    label = { Text("Diziler", fontWeight = if (selectedNavTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                    label = {
+                        Text(
+                            text = "Diziler",
+                            fontWeight = if (selectedNavTab == 2) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = CyanPrimary,
-                        indicatorColor = CyanPrimary,
-                        unselectedIconColor = TextMuted,
-                        unselectedTextColor = TextMuted
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     modifier = Modifier.testTag("nav_series")
                 )
@@ -319,7 +372,7 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(DarkBg)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             when (selectedNavTab) {
                 0 -> {
@@ -351,6 +404,7 @@ fun MainScreen(
                 }
 
                 1 -> {
+                    // Dedicated VOD Section
                     MoviesScreen(
                         movies = movieChannels,
                         onPlayMovie = { viewModel.playChannel(it) },
@@ -372,14 +426,14 @@ fun MainScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            containerColor = DarkSurface,
+            containerColor = MaterialTheme.colorScheme.surface,
             title = {
-                Text("Playlisti Değiştir", color = TextPrimary, fontWeight = FontWeight.Bold)
+                Text("Playlisti Değiştir", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
                     "Mevcut playlist veya hesap bağlantısını kesip yeni bir URL, dosya veya hesap eklemek istiyor musunuz?",
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
@@ -394,7 +448,7 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("İptal", color = TextMuted)
+                    Text("İptal", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )

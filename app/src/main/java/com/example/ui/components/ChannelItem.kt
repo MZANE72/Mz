@@ -66,13 +66,18 @@ fun ChannelItem(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
+    val defaultBorder = MaterialTheme.colorScheme.outline
+    val defaultBg = MaterialTheme.colorScheme.surface
+    val focusedBorder = MaterialTheme.colorScheme.primary
+    val focusedBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) CyanPrimary else DarkCardBorder,
+        targetValue = if (isFocused) focusedBorder else defaultBorder,
         label = "borderColor"
     )
 
     val backgroundColor by animateColorAsState(
-        targetValue = if (isFocused) Color(0xFF1E283C) else DarkSurface,
+        targetValue = if (isFocused) focusedBg else defaultBg,
         label = "bgColor"
     )
 
@@ -131,7 +136,7 @@ fun ChannelItem(
             ) {
                 Text(
                     text = channel.name,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,

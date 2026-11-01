@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FolderOpen
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SettingsBrightness
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -107,6 +109,8 @@ fun LoginScreen(
     onLoadFile: (uri: Uri, expirationMillis: Long) -> Unit,
     onLoginXtream: (server: String, user: String, pass: String, expirationMillis: Long) -> Unit,
     onLoadDemoStreams: () -> Unit,
+    themeMode: String = "DARK",
+    onToggleTheme: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -206,7 +210,7 @@ fun LoginScreen(
 
                     Column {
                         Text(
-                            text = "NOVA IPTV",
+                            text = "ZANA IPTV",
                             color = TextPrimary,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -221,8 +225,31 @@ fun LoginScreen(
                     }
                 }
 
-                // Saat, Dakika, Saniye ve Tarih
-                LiveClock(compact = true, showDate = true)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Saat, Dakika, Saniye ve Tarih
+                    LiveClock(compact = true, showDate = true)
+
+                    if (onToggleTheme != null) {
+                        IconButton(
+                            onClick = onToggleTheme,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1E2638))
+                                .testTag("login_theme_toggle")
+                        ) {
+                            Icon(
+                                imageVector = if (themeMode == "DARK") Icons.Default.DarkMode else Icons.Default.SettingsBrightness,
+                                contentDescription = "Tema Değiştir",
+                                tint = CyanPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))

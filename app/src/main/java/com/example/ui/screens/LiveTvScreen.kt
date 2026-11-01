@@ -30,6 +30,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -87,7 +88,7 @@ fun LiveTvScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DarkBg)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         // Top Action Row: Search and Multi-View Button
@@ -102,12 +103,12 @@ fun LiveTvScreen(
                 placeholder = { Text("Kanal veya kategori ara...") },
                 singleLine = true,
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted)
+                    Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Temizle", tint = TextMuted)
+                            Icon(Icons.Default.Clear, contentDescription = "Temizle", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 },
@@ -116,12 +117,12 @@ fun LiveTvScreen(
                     .testTag("channel_search_input"),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CyanPrimary,
-                    unfocusedBorderColor = DarkCardBorder,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedContainerColor = DarkSurface,
-                    unfocusedContainerColor = DarkSurface
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
 
@@ -158,12 +159,12 @@ fun LiveTvScreen(
                         .clip(RoundedCornerShape(20.dp))
                         .border(
                             width = 1.dp,
-                            color = if (isSelected) CyanPrimary else DarkCardBorder,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                             shape = RoundedCornerShape(20.dp)
                         )
                         .clickable { onSelectCategory(cat) }
                         .testTag("category_chip_$cat"),
-                    color = if (isSelected) CyanPrimary.copy(alpha = 0.2f) else DarkSurface
+                    color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -180,7 +181,7 @@ fun LiveTvScreen(
                         }
                         Text(
                             text = cat,
-                            color = if (isSelected) CyanPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
@@ -199,7 +200,7 @@ fun LiveTvScreen(
         ) {
             Text(
                 text = "${channels.size} Kanal Listeleniyor",
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -212,8 +213,8 @@ fun LiveTvScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(Icons.Default.Restore, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(14.dp))
-                Text("Silinenleri Geri Al", color = CyanPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Default.Restore, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                Text("Silinenleri Geri Al", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 

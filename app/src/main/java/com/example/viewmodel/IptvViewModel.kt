@@ -299,6 +299,12 @@ class IptvViewModel(
         }
     }
 
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch {
+            repository.setThemeMode(mode)
+        }
+    }
+
     fun logout() {
         viewModelScope.launch {
             _currentPlayingChannel.value = null

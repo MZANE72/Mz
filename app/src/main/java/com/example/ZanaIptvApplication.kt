@@ -5,7 +5,7 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.PreferencesManager
 import com.example.data.repository.IptvRepository
 
-class NovaIptvApplication : Application() {
+class ZanaIptvApplication : Application() {
 
     lateinit var database: AppDatabase
         private set

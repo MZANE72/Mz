@@ -18,12 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,10 +29,9 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.ScrollableTabRow
@@ -64,14 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.local.ChannelEntity
-import com.example.ui.theme.CyanPrimary
-import com.example.ui.theme.DarkBg
-import com.example.ui.theme.DarkCardBorder
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
 
 @Composable
 fun SeriesScreen(
@@ -96,7 +84,7 @@ fun SeriesScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .background(DarkBg)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(14.dp)
         ) {
             // Top Bar
@@ -105,11 +93,15 @@ fun SeriesScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 IconButton(onClick = { selectedSeriesForDetail = null }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri", tint = Color.White)
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Geri",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
                 }
                 Text(
                     text = series.name,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -124,7 +116,8 @@ fun SeriesScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                     .padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -133,7 +126,7 @@ fun SeriesScreen(
                     modifier = Modifier
                         .size(80.dp, 110.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF0F1420)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!series.logoUrl.isNullOrBlank()) {
@@ -144,16 +137,30 @@ fun SeriesScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(36.dp))
+                        Icon(
+                            Icons.Default.VideoLibrary,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(text = series.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Kategori: ${series.groupTitle}", color = CyanPrimary, fontSize = 12.sp)
+                    Text(
+                        text = series.name,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Kategori: ${series.groupTitle}",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 12.sp
+                    )
                     Text(
                         text = "İzlemek istediğiniz sezonu ve bölümü seçerek oynatabilirsiniz.",
-                        color = TextMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         lineHeight = 16.sp
                     )
@@ -166,12 +173,12 @@ fun SeriesScreen(
             ScrollableTabRow(
                 selectedTabIndex = selectedSeasonIndex,
                 containerColor = Color.Transparent,
-                contentColor = CyanPrimary,
+                contentColor = MaterialTheme.colorScheme.primary,
                 edgePadding = 0.dp,
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
                         Modifier.tabIndicatorOffset(tabPositions[selectedSeasonIndex]),
-                        color = CyanPrimary,
+                        color = MaterialTheme.colorScheme.primary,
                         height = 3.dp
                     )
                 },
@@ -184,7 +191,7 @@ fun SeriesScreen(
                         text = {
                             Text(
                                 text = sName,
-                                color = if (selectedSeasonIndex == idx) CyanPrimary else TextMuted,
+                                color = if (selectedSeasonIndex == idx) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = if (selectedSeasonIndex == idx) FontWeight.Bold else FontWeight.Normal
                             )
                         }
@@ -208,11 +215,9 @@ fun SeriesScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .border(1.dp, DarkCardBorder, RoundedCornerShape(10.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
                             .clickable {
-                                // Create an episode channel representation
                                 val streamUrl = series.streamUrl.ifBlank {
-                                    // Sample stream url
                                     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
                                 }
                                 val epChannel = series.copy(
@@ -225,7 +230,7 @@ fun SeriesScreen(
                                 onPlayEpisode(epChannel)
                             }
                             .testTag("episode_${selectedSeasonIndex + 1}_$epNum"),
-                        color = DarkSurface
+                        color = MaterialTheme.colorScheme.surface
                     ) {
                         Row(
                             modifier = Modifier
@@ -242,27 +247,36 @@ fun SeriesScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(CyanPrimary.copy(alpha = 0.15f)),
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = "$epNum",
-                                        color = CyanPrimary,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
                                 }
 
                                 Column {
-                                    Text(text = epTitle, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                    Text(text = "45 dk • 1080p Full HD", color = TextMuted, fontSize = 11.sp)
+                                    Text(
+                                        text = epTitle,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "45 dk • 1080p Full HD",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp
+                                    )
                                 }
                             }
 
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = "Oynat",
-                                tint = CyanPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -275,7 +289,7 @@ fun SeriesScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .background(DarkBg)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
             OutlinedTextField(
@@ -284,12 +298,20 @@ fun SeriesScreen(
                 placeholder = { Text("Dizi ara...") },
                 singleLine = true,
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted)
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Temizle", tint = TextMuted)
+                            Icon(
+                                Icons.Default.Clear,
+                                contentDescription = "Temizle",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 },
@@ -298,12 +320,12 @@ fun SeriesScreen(
                     .testTag("series_search_input"),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CyanPrimary,
-                    unfocusedBorderColor = DarkCardBorder,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedContainerColor = DarkSurface,
-                    unfocusedContainerColor = DarkSurface
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
 
@@ -311,7 +333,7 @@ fun SeriesScreen(
 
             Text(
                 text = "${filteredSeries.size} Dizi Listeleniyor",
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -327,7 +349,7 @@ fun SeriesScreen(
                 ) {
                     Text(
                         text = if (seriesList.isEmpty()) "Listenizde dizi içeriği bulunamadı" else "Aramanızla eşleşen dizi bulunamadı",
-                        color = TextMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 15.sp,
                         textAlign = TextAlign.Center
                     )
@@ -365,10 +387,10 @@ private fun SeriesPosterCard(
             .clip(RoundedCornerShape(12.dp))
             .border(
                 width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) CyanPrimary else DarkCardBorder,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(12.dp)
             )
-            .background(DarkSurface)
+            .background(MaterialTheme.colorScheme.surface)
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .clickable(onClick = onClick)
@@ -380,7 +402,7 @@ private fun SeriesPosterCard(
                 .fillMaxWidth()
                 .aspectRatio(0.68f)
                 .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                .background(Color(0xFF0F1420)),
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             if (!series.logoUrl.isNullOrBlank()) {
@@ -394,7 +416,7 @@ private fun SeriesPosterCard(
                 Icon(
                     imageVector = Icons.Default.Tv,
                     contentDescription = null,
-                    tint = CyanPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(36.dp)
                 )
             }
@@ -407,7 +429,7 @@ private fun SeriesPosterCard(
         ) {
             Text(
                 text = series.name,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -415,7 +437,7 @@ private fun SeriesPosterCard(
             )
             Text(
                 text = series.groupTitle.ifBlank { "Dizi" },
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

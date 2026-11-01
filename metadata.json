@@ -1,6 +1,6 @@
 {
-  "name": "Nova IPTV",
-  "description": "Modern, hızlı ve gelişmiş M3U/M3U8 ve Xtream Codes IPTV oynatıcı. Çoklu ekran (Multi-View), favori yönetimi ve canlı yayın desteği.",
+  "name": "ZANA IPTV",
+  "description": "Modern, hızlı ve gelişmiş M3U/M3U8 ve Xtream Codes IPTV oynatıcı. Çoklu ekran (Multi-View), VOD bölümü, favori yönetimi ve canlı yayın desteği.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 
-private val Context.dataStore by preferencesDataStore(name = "nova_iptv_prefs")
+private val Context.dataStore by preferencesDataStore(name = "zana_iptv_prefs")
 
 data class PlaylistConfig(
     val type: String = "NONE", // URL, FILE, XTREAM, NONE
@@ -19,8 +19,14 @@ data class PlaylistConfig(
     val expirationMillis: Long = 0L,
     val xtreamServer: String = "",
     val xtreamUser: String = "",
-    val xtreamPass: String = ""
+    val xtreamPass: String = "",
+    val themeMode: String = THEME_DARK // DARK, SYSTEM
 ) {
+    companion object {
+        const val THEME_DARK = "DARK"
+        const val THEME_SYSTEM = "SYSTEM"
+    }
+
     fun isConfigured(): Boolean = type != "NONE" && (sourceUri.isNotBlank() || xtreamServer.isNotBlank())
 
     fun isExpired(currentTimeMillis: Long = System.currentTimeMillis()): Boolean {
@@ -50,6 +56,7 @@ class PreferencesManager(private val context: Context) {
         val XTREAM_SERVER = stringPreferencesKey("xtream_server")
         val XTREAM_USER = stringPreferencesKey("xtream_user")
         val XTREAM_PASS = stringPreferencesKey("xtream_pass")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 
     val configFlow: Flow<PlaylistConfig> = context.dataStore.data.map { prefs ->
@@ -60,7 +67,8 @@ class PreferencesManager(private val context: Context) {
             expirationMillis = prefs[Keys.EXPIRATION_MILLIS] ?: 0L,
             xtreamServer = prefs[Keys.XTREAM_SERVER] ?: "",
             xtreamUser = prefs[Keys.XTREAM_USER] ?: "",
-            xtreamPass = prefs[Keys.XTREAM_PASS] ?: ""
+            xtreamPass = prefs[Keys.XTREAM_PASS] ?: "",
+            themeMode = prefs[Keys.THEME_MODE] ?: PlaylistConfig.THEME_DARK
         )
     }
 
@@ -105,6 +113,12 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.THEME_MODE] = mode
+        }
+    }
+
     suspend fun updateExpiration(expirationMillis: Long) {
         context.dataStore.edit { prefs ->
             prefs[Keys.EXPIRATION_MILLIS] = expirationMillis
@@ -113,7 +127,9 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun clearConfig() {
         context.dataStore.edit { prefs ->
+            val currentTheme = prefs[Keys.THEME_MODE] ?: PlaylistConfig.THEME_DARK
             prefs.clear()
+            prefs[Keys.THEME_MODE] = currentTheme
         }
     }
 }

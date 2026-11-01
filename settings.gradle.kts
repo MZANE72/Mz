@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Nova IPTV"
+rootProject.name = "ZANA IPTV"
 
 include(":app")

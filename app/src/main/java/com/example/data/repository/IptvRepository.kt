@@ -55,6 +55,10 @@ class IptvRepository(
         channelDao.reorderChannels(list)
     }
 
+    suspend fun setThemeMode(mode: String) {
+        preferencesManager.setThemeMode(mode)
+    }
+
     suspend fun loadFromUrl(
         url: String,
         expirationMillis: Long,

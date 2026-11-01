@@ -5,16 +5,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.local.PlaylistConfig
 import com.example.ui.screens.ExpiredScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.MainScreen
-import com.example.ui.theme.DarkBg
-import com.example.ui.theme.NovaIptvTheme
+import com.example.ui.theme.ZanaIptvTheme
 import com.example.viewmodel.IptvViewModel
 import com.example.viewmodel.IptvViewModelFactory
 
@@ -23,23 +24,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val app = application as NovaIptvApplication
+        val app = application as ZanaIptvApplication
         val repository = app.repository
 
         setContent {
-            NovaIptvTheme {
-                val viewModel: IptvViewModel = viewModel(
-                    factory = IptvViewModelFactory(repository)
-                )
+            val viewModel: IptvViewModel = viewModel(
+                factory = IptvViewModelFactory(repository)
+            )
 
-                val config by viewModel.playlistConfig.collectAsState()
-                val isLoading by viewModel.isLoading.collectAsState()
-                val loadingMessage by viewModel.loadingMessage.collectAsState()
-                val errorMessage by viewModel.errorMessage.collectAsState()
+            val config by viewModel.playlistConfig.collectAsState()
+            val isLoading by viewModel.isLoading.collectAsState()
+            val loadingMessage by viewModel.loadingMessage.collectAsState()
+            val errorMessage by viewModel.errorMessage.collectAsState()
 
+            ZanaIptvTheme(themeMode = config.themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = DarkBg
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     when {
                         !config.isConfigured() -> {
@@ -59,6 +60,16 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onLoadDemoStreams = {
                                     viewModel.loadDemoStreams()
+                                },
+                                themeMode = config.themeMode,
+                                onToggleTheme = {
+                                    viewModel.setThemeMode(
+                                        if (config.themeMode == PlaylistConfig.THEME_DARK) {
+                                            PlaylistConfig.THEME_SYSTEM
+                                        } else {
+                                            PlaylistConfig.THEME_DARK
+                                        }
+                                    )
                                 }
                             )
                         }
