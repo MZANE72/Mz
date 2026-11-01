@@ -24,16 +24,15 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
@@ -61,7 +60,6 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -73,15 +71,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.LiveClock
@@ -111,24 +108,13 @@ fun LoginScreen(
     onLoadUrl: (url: String, expirationMillis: Long, name: String) -> Unit,
     onLoadFile: (uri: Uri, expirationMillis: Long) -> Unit,
     onLoginXtream: (server: String, user: String, pass: String, expirationMillis: Long) -> Unit,
-    onLoadStalker: ((portalUrl: String, macAddress: String, name: String, expirationMillis: Long) -> Unit)? = null,
     onLoadDemoStreams: () -> Unit,
     themeMode: String = "DARK",
     onToggleTheme: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: URL, 1: File, 2: Xtream, 3: Stalker
-
-    // Auto clipboard detection
-    var detectedClipboardUrl by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        val clipText = clipboardManager.getText()?.text?.trim()
-        if (!clipText.isNullOrBlank() && (clipText.startsWith("http://") || clipText.startsWith("https://"))) {
-            detectedClipboardUrl = clipText
-        }
-    }
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: URL, 1: File, 2: Xtream
 
     // URL Tab state
     var urlInput by remember { mutableStateOf("") }
@@ -146,12 +132,6 @@ fun LoginScreen(
     var xtreamPass by remember { mutableStateOf("") }
     var xtreamExpirationMillis by remember { mutableLongStateOf(0L) }
     var isPasswordVisible by remember { mutableStateOf(false) }
-
-    // Stalker Tab state
-    var stalkerUrl by remember { mutableStateOf("") }
-    var stalkerMac by remember { mutableStateOf("") }
-    var stalkerName by remember { mutableStateOf("") }
-    var stalkerExpirationMillis by remember { mutableLongStateOf(0L) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -240,22 +220,23 @@ fun LoginScreen(
                             text = "Gelişmiş Oynatıcı",
                             color = CyanPrimary,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Saat, Dakika, Saniye ve Tarih
                     LiveClock(compact = true, showDate = true)
 
                     if (onToggleTheme != null) {
                         IconButton(
                             onClick = onToggleTheme,
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF1E2638))
                                 .testTag("login_theme_toggle")
@@ -271,67 +252,9 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Panodaki Kopyalanan Bağlantıyı Algılama Bannerı
-            detectedClipboardUrl?.let { clipUrl ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 700.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF0F2B48))
-                        .border(1.dp, CyanPrimary, RoundedCornerShape(12.dp))
-                        .padding(12.dp)
-                        .testTag("clipboard_detected_banner")
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.AssignmentTurnedIn, contentDescription = null, tint = CyanPrimary)
-                            Column {
-                                Text(
-                                    text = "Panodan Bağlantı Algılandı",
-                                    color = CyanPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = clipUrl,
-                                    color = TextSecondary,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Button(
-                            onClick = {
-                                urlInput = clipUrl
-                                selectedTab = 0
-                                detectedClipboardUrl = null
-                            },
-                            contentPadding = ButtonDefaults.TextButtonContentPadding,
-                            colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary, contentColor = Color.Black)
-                        ) {
-                            Text("Yapıştır & Ekle", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-
-            // YASAL UYARI BANNERI
+            // YASAL UYARI BANNERI (ZORUNLU)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -368,7 +291,7 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Error banner
             AnimatedVisibility(visible = errorMessage != null) {
@@ -406,7 +329,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 4 Tabs Card: URL, Dosya, Xtream, Stalker
+            // 3 Tabs Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -417,6 +340,7 @@ fun LoginScreen(
                     .padding(16.dp)
             ) {
                 Column {
+                    // Tabs
                     ScrollableTabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = Color.Transparent,
@@ -437,7 +361,7 @@ fun LoginScreen(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Text("URL", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal)
+                                    Text("URL ile Ekle", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal)
                                 }
                             },
                             selectedContentColor = CyanPrimary,
@@ -449,7 +373,7 @@ fun LoginScreen(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Text("Dosya", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal)
+                                    Text("Dosyadan Ekle", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal)
                                 }
                             },
                             selectedContentColor = CyanPrimary,
@@ -461,19 +385,7 @@ fun LoginScreen(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Text("Xtream", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal)
-                                }
-                            },
-                            selectedContentColor = CyanPrimary,
-                            unselectedContentColor = TextMuted
-                        )
-                        Tab(
-                            selected = selectedTab == 3,
-                            onClick = { selectedTab = 3 },
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Text("Stalker", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal)
+                                    Text("Hesap ile Giriş", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal)
                                 }
                             },
                             selectedContentColor = CyanPrimary,
@@ -526,6 +438,7 @@ fun LoginScreen(
                                     shape = RoundedCornerShape(12.dp)
                                 )
 
+                                // Expiration Date Picker
                                 ExpirationPickerRow(
                                     expirationMillis = urlExpirationMillis,
                                     dateFormatter = dateFormatter,
@@ -607,6 +520,7 @@ fun LoginScreen(
                                     }
                                 }
 
+                                // Expiration Date Picker
                                 ExpirationPickerRow(
                                     expirationMillis = fileExpirationMillis,
                                     dateFormatter = dateFormatter,
@@ -641,7 +555,7 @@ fun LoginScreen(
                         }
 
                         2 -> {
-                            // 3) Xtream Codes API
+                            // 3) Hesap ile Giriş (Xtream Codes API)
                             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 OutlinedTextField(
                                     value = xtreamServer,
@@ -718,6 +632,7 @@ fun LoginScreen(
                                     shape = RoundedCornerShape(12.dp)
                                 )
 
+                                // Expiration note for Xtream
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -728,7 +643,7 @@ fun LoginScreen(
                                 ) {
                                     Icon(Icons.Default.Info, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(18.dp))
                                     Text(
-                                        text = "Abonelik bitiş tarihi Xtream sunucusundan otomatik algılanacaktır.",
+                                        text = "Abonelik bitiş tarihi Xtream sunucusundan otomatik olarak algılanacaktır.",
                                         color = TextSecondary,
                                         fontSize = 11.sp
                                     )
@@ -752,100 +667,6 @@ fun LoginScreen(
                                     Icon(Icons.Default.Tv, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Xtream ile Bağlan ve Yükle", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                }
-                            }
-                        }
-
-                        3 -> {
-                            // 4) Stalker Portal
-                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                OutlinedTextField(
-                                    value = stalkerUrl,
-                                    onValueChange = { stalkerUrl = it },
-                                    label = { Text("Portal URL") },
-                                    placeholder = { Text("http://portal.example.com/c/") },
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("stalker_url_input"),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = CyanPrimary,
-                                        unfocusedBorderColor = DarkCardBorder,
-                                        focusedTextColor = TextPrimary,
-                                        unfocusedTextColor = TextPrimary,
-                                        focusedContainerColor = DarkSurfaceVariant,
-                                        unfocusedContainerColor = DarkSurfaceVariant
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-
-                                OutlinedTextField(
-                                    value = stalkerMac,
-                                    onValueChange = { stalkerMac = it },
-                                    label = { Text("Cihaz MAC Adresi") },
-                                    placeholder = { Text("00:1A:79:00:11:22") },
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("stalker_mac_input"),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = CyanPrimary,
-                                        unfocusedBorderColor = DarkCardBorder,
-                                        focusedTextColor = TextPrimary,
-                                        unfocusedTextColor = TextPrimary,
-                                        focusedContainerColor = DarkSurfaceVariant,
-                                        unfocusedContainerColor = DarkSurfaceVariant
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-
-                                OutlinedTextField(
-                                    value = stalkerName,
-                                    onValueChange = { stalkerName = it },
-                                    label = { Text("Liste Adı (İsteğe Bağlı)") },
-                                    placeholder = { Text("Stalker Portalım") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = CyanPrimary,
-                                        unfocusedBorderColor = DarkCardBorder,
-                                        focusedTextColor = TextPrimary,
-                                        unfocusedTextColor = TextPrimary,
-                                        focusedContainerColor = DarkSurfaceVariant,
-                                        unfocusedContainerColor = DarkSurfaceVariant
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-
-                                ExpirationPickerRow(
-                                    expirationMillis = stalkerExpirationMillis,
-                                    dateFormatter = dateFormatter,
-                                    onPickDate = {
-                                        showDatePicker(stalkerExpirationMillis) { picked ->
-                                            stalkerExpirationMillis = picked
-                                        }
-                                    },
-                                    onClearDate = { stalkerExpirationMillis = 0L }
-                                )
-
-                                Button(
-                                    onClick = {
-                                        onLoadStalker?.invoke(stalkerUrl, stalkerMac, stalkerName, stalkerExpirationMillis)
-                                    },
-                                    enabled = !isLoading && stalkerUrl.isNotBlank() && stalkerMac.isNotBlank(),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                        .testTag("stalker_login_button"),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = CyanPrimary,
-                                        contentColor = Color.Black
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Dns, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Stalker Portal ile Bağlan", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                 }
                             }
                         }

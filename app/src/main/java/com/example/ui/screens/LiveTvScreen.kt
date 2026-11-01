@@ -23,14 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,22 +44,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.ChannelEntity
 import com.example.ui.components.ChannelItem
-import com.example.ui.components.LiveClock
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CyanPrimary
+import com.example.ui.theme.DarkBg
+import com.example.ui.theme.DarkCardBorder
+import com.example.ui.theme.DarkSurface
+import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
 
 @Composable
 fun LiveTvScreen(
     channels: List<ChannelEntity>,
     allChannels: List<ChannelEntity>,
-    recentChannels: List<ChannelEntity>,
     selectedCategory: String,
     searchQuery: String,
     onSelectCategory: (String) -> Unit,
@@ -70,7 +69,6 @@ fun LiveTvScreen(
     onPlayChannel: (ChannelEntity) -> Unit,
     onToggleFavorite: (ChannelEntity) -> Unit,
     onDeleteChannel: (ChannelEntity) -> Unit,
-    onRenameChannel: (channelId: String, newName: String) -> Unit,
     onMoveUp: (ChannelEntity) -> Unit,
     onMoveDown: (ChannelEntity) -> Unit,
     onRestoreDeleted: () -> Unit,
@@ -93,7 +91,7 @@ fun LiveTvScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
-        // Top Action Row: Search, Clock, and Multi-View Button
+        // Top Action Row: Search and Multi-View Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -192,60 +190,6 @@ fun LiveTvScreen(
             }
         }
 
-        // Son İzlenen Kanallar Row (Recent Channels)
-        if (recentChannels.isNotEmpty() && searchQuery.isBlank() && selectedCategory == "Tümü") {
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(Icons.Default.History, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(16.dp))
-                Text(
-                    text = "Son İzlenenler",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(recentChannels) { recentCh ->
-                    Card(
-                        modifier = Modifier
-                            .width(160.dp)
-                            .clickable { onPlayChannel(recentCh) }
-                            .testTag("recent_channel_${recentCh.id}"),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text(
-                                text = recentCh.name,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = recentCh.groupTitle,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         Spacer(modifier = Modifier.height(12.dp))
 
         // Channel Count Summary & Restore option
@@ -290,14 +234,14 @@ fun LiveTvScreen(
                 ) {
                     Text(
                         text = if (selectedCategory == "Favoriler") "Henüz favori kanal eklenmedi" else "Gösterilecek kanal bulunamadı",
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = TextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         text = if (selectedCategory == "Favoriler") "Kanalların yanındaki yıldız simgesine dokunarak favorilerinize ekleyebilirsiniz." else "Arama filtrenizi temizlemeyi deneyin.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = TextMuted,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center
                     )
@@ -315,7 +259,6 @@ fun LiveTvScreen(
                         onClick = { onPlayChannel(ch) },
                         onToggleFavorite = { onToggleFavorite(ch) },
                         onDelete = { onDeleteChannel(ch) },
-                        onRename = { newName -> onRenameChannel(ch.id, newName) },
                         onMoveUp = { onMoveUp(ch) },
                         onMoveDown = { onMoveDown(ch) },
                         canMoveUp = index > 0,

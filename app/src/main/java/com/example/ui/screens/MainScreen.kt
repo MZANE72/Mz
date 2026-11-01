@@ -1,9 +1,12 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,15 +23,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.LocalMovies
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBrightness
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.LocalMovies
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -40,6 +45,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -61,14 +67,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.PlaylistConfig
 import com.example.ui.components.LiveClock
-import com.example.ui.components.SettingsDialog
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CyanPrimary
 import com.example.ui.theme.RedAccent
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.VioletSecondary
 import com.example.viewmodel.IptvViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -77,14 +86,10 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     val config by viewModel.playlistConfig.collectAsState()
-    val accounts by viewModel.accountsList.collectAsState()
     val liveChannels by viewModel.filteredLiveChannels.collectAsState()
     val allLiveChannels by viewModel.rawLiveChannels.collectAsState()
-    val recentLiveChannels by viewModel.recentLiveChannels.collectAsState()
     val movieChannels by viewModel.movieChannels.collectAsState()
     val seriesChannels by viewModel.seriesChannels.collectAsState()
-    val continueWatching by viewModel.continueWatching.collectAsState()
-    val watchlist by viewModel.watchlist.collectAsState()
     val selectedCategory by viewModel.selectedLiveCategory.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
@@ -96,7 +101,6 @@ fun MainScreen(
 
     var selectedNavTab by remember { mutableIntStateOf(0) } // 0: Canlı TV, 1: VOD (Filmler), 2: Diziler
     var showLogoutDialog by remember { mutableStateOf(false) }
-    var showSettingsDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -107,13 +111,7 @@ fun MainScreen(
     if (currentPlayingChannel != null) {
         PlayerScreen(
             channel = currentPlayingChannel!!,
-            onClose = { viewModel.stopPlayback() },
-            onNextChannel = { viewModel.playNextChannel() },
-            onPrevChannel = { viewModel.playPreviousChannel() },
-            onRecallChannel = { viewModel.recallLastChannel() },
-            onSaveResumePosition = { id, pos, dur ->
-                viewModel.updateResumePosition(id, pos, dur)
-            }
+            onClose = { viewModel.stopPlayback() }
         )
         return
     }
@@ -192,29 +190,12 @@ fun MainScreen(
                         }
                     }
 
-                    // Live Clock, Theme Switcher, Settings & Logout
+                    // Live Clock, Theme Switcher & Logout
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         LiveClock(compact = true, showDate = true)
-
-                        // Settings Icon (Bağlantı & Ayarlar)
-                        IconButton(
-                            onClick = { showSettingsDialog = true },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .testTag("open_settings_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Ayarlar",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
 
                         // Karanlık veya Sistem Teması Seçeneği
                         IconButton(
@@ -227,7 +208,7 @@ fun MainScreen(
                                 viewModel.setThemeMode(nextMode)
                                 scope.launch {
                                     val modeName = if (nextMode == PlaylistConfig.THEME_DARK) "Karanlık Tema" else "Sistem Teması"
-                                    snackbarHostState.showSnackbar("Tema: $modeName")
+                                    snackbarHostState.showSnackbar("Tema değiştirildi: $modeName")
                                 }
                             },
                             modifier = Modifier
@@ -244,7 +225,6 @@ fun MainScreen(
                             )
                         }
 
-                        // Logout button
                         IconButton(
                             onClick = { showLogoutDialog = true },
                             modifier = Modifier
@@ -263,7 +243,7 @@ fun MainScreen(
                     }
                 }
 
-                // Expiration Warning Banner
+                // 3 Günden az kaldıysa UYARI BİLDİRİMİ (ZORUNLU)
                 val daysLeft = config.daysLeft()
                 val isNearExpiry = config.isNearExpiration()
 
@@ -288,7 +268,7 @@ fun MainScreen(
                                 text = if (daysLeft == 0L) {
                                     "Aboneliğiniz BUGÜN sona eriyor! Lütfen süreyi yenileyin."
                                 } else {
-                                    "Aboneliğinizin bitmesine $daysLeft gün kaldı!"
+                                    "Aboneliğinizin bitmesine $daysLeft gün kaldı! ($dateFormatter)"
                                 },
                                 color = AmberAccent,
                                 fontSize = 12.sp,
@@ -334,7 +314,7 @@ fun MainScreen(
                     modifier = Modifier.testTag("nav_live_tv")
                 )
 
-                // 2) AYRI VOD BÖLÜMÜ (Filmler)
+                // 2) AYRI VOD BÖLÜMÜ (Video on Demand - Filmler)
                 NavigationBarItem(
                     selected = selectedNavTab == 1,
                     onClick = { selectedNavTab = 1 },
@@ -399,7 +379,6 @@ fun MainScreen(
                     LiveTvScreen(
                         channels = liveChannels,
                         allChannels = allLiveChannels,
-                        recentChannels = recentLiveChannels,
                         selectedCategory = selectedCategory,
                         searchQuery = searchQuery,
                         onSelectCategory = { viewModel.selectLiveCategory(it) },
@@ -410,12 +389,6 @@ fun MainScreen(
                             viewModel.deleteChannel(ch)
                             scope.launch {
                                 snackbarHostState.showSnackbar("Kanal gizlendi: ${ch.name}")
-                            }
-                        },
-                        onRenameChannel = { id, newName ->
-                            viewModel.renameChannel(id, newName)
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Kanal adı güncellendi")
                             }
                         },
                         onMoveUp = { viewModel.moveChannelUp(it) },
@@ -447,20 +420,6 @@ fun MainScreen(
                 }
             }
         }
-    }
-
-    // Settings Dialog
-    if (showSettingsDialog) {
-        SettingsDialog(
-            config = config,
-            accounts = accounts,
-            viewModel = viewModel,
-            onDismiss = { showSettingsDialog = false },
-            onLogout = {
-                showSettingsDialog = false
-                viewModel.logout()
-            }
-        )
     }
 
     // Logout Confirmation Dialog

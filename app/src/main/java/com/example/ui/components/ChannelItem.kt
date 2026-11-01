@@ -12,24 +12,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +46,8 @@ import coil.compose.AsyncImage
 import com.example.data.local.ChannelEntity
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CyanPrimary
+import com.example.ui.theme.DarkCardBorder
+import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.RedAccent
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -60,7 +58,6 @@ fun ChannelItem(
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
-    onRename: ((String) -> Unit)? = null,
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
     canMoveUp: Boolean = true,
@@ -68,8 +65,6 @@ fun ChannelItem(
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var renameInput by remember { mutableStateOf(channel.name) }
 
     val defaultBorder = MaterialTheme.colorScheme.outline
     val defaultBg = MaterialTheme.colorScheme.surface
@@ -106,23 +101,6 @@ fun ChannelItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Channel Number Badge
-            if (channel.channelNumber > 0) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "#${channel.channelNumber}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
             // Channel Logo / Icon
             Box(
                 modifier = Modifier
@@ -151,10 +129,10 @@ fun ChannelItem(
                 }
             }
 
-            // Channel Title, Category, and EPG Program info
+            // Channel Title & Category
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = channel.name,
@@ -164,18 +142,6 @@ fun ChannelItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                // EPG Program if available
-                if (!channel.currentProgram.isNullOrBlank()) {
-                    Text(
-                        text = "Şu An: ${channel.currentProgram}",
-                        color = CyanPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -214,7 +180,7 @@ fun ChannelItem(
                 }
             }
 
-            // Actions: Move Up / Down, Rename, Favorite, Delete
+            // Actions: Move Up / Down (TV Remote & Touch reordering support)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -241,24 +207,6 @@ fun ChannelItem(
                         Icon(
                             imageVector = Icons.Default.ArrowDownward,
                             contentDescription = "Aşağı Taşı",
-                            tint = TextMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                // Rename Channel
-                if (onRename != null) {
-                    IconButton(
-                        onClick = {
-                            renameInput = channel.name
-                            showRenameDialog = true
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Yeniden Adlandır",
                             tint = TextMuted,
                             modifier = Modifier.size(18.dp)
                         )
@@ -296,39 +244,5 @@ fun ChannelItem(
                 }
             }
         }
-    }
-
-    // Rename Dialog
-    if (showRenameDialog && onRename != null) {
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text("Kanal Adını Değiştir", color = MaterialTheme.colorScheme.onSurface) },
-            text = {
-                OutlinedTextField(
-                    value = renameInput,
-                    onValueChange = { renameInput = it },
-                    label = { Text("Kanal Adı") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (renameInput.isNotBlank()) {
-                            onRename(renameInput.trim())
-                        }
-                        showRenameDialog = false
-                    }
-                ) {
-                    Text("Kaydet")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) {
-                    Text("İptal")
-                }
-            }
-        )
     }
 }

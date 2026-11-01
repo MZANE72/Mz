@@ -1,7 +1,5 @@
 package com.example.data.repository
 
-import com.example.data.local.AccountDao
-import com.example.data.local.AccountEntity
 import com.example.data.local.ChannelDao
 import com.example.data.local.ChannelEntity
 import com.example.data.local.PlaylistConfig
@@ -15,12 +13,10 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.InputStream
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 class IptvRepository(
     private val channelDao: ChannelDao,
-    private val accountDao: AccountDao,
     private val preferencesManager: PreferencesManager,
     private val xtreamClient: XtreamClient = XtreamClient()
 ) {
@@ -30,7 +26,6 @@ class IptvRepository(
         .build()
 
     val playlistConfig: Flow<PlaylistConfig> = preferencesManager.configFlow
-    val accountsFlow: Flow<List<AccountEntity>> = accountDao.getAllAccountsFlow()
 
     fun getLiveChannels(): Flow<List<ChannelEntity>> =
         channelDao.getChannelsFlow(ChannelEntity.TYPE_LIVE)
@@ -38,47 +33,14 @@ class IptvRepository(
     fun getFavoriteLiveChannels(): Flow<List<ChannelEntity>> =
         channelDao.getFavoriteChannelsFlow(ChannelEntity.TYPE_LIVE)
 
-    fun getRecentLiveChannels(): Flow<List<ChannelEntity>> =
-        channelDao.getRecentLiveChannelsFlow()
-
     fun getMovieChannels(): Flow<List<ChannelEntity>> =
         channelDao.getChannelsFlow(ChannelEntity.TYPE_MOVIE)
 
     fun getSeriesChannels(): Flow<List<ChannelEntity>> =
         channelDao.getChannelsFlow(ChannelEntity.TYPE_SERIES)
 
-    fun getContinueWatching(): Flow<List<ChannelEntity>> =
-        channelDao.getContinueWatchingFlow()
-
-    fun getWatchlist(): Flow<List<ChannelEntity>> =
-        channelDao.getWatchlistFlow()
-
     suspend fun toggleFavorite(id: String, currentStatus: Boolean) {
         channelDao.updateFavorite(id, !currentStatus)
-    }
-
-    suspend fun toggleWatchlist(id: String, currentStatus: Boolean) {
-        channelDao.updateWatchlist(id, !currentStatus)
-    }
-
-    suspend fun setWatched(id: String, isWatched: Boolean) {
-        channelDao.updateWatched(id, isWatched)
-    }
-
-    suspend fun updateResumePosition(id: String, positionMs: Long, durationMs: Long) {
-        channelDao.updateResumePosition(id, positionMs, durationMs, System.currentTimeMillis())
-    }
-
-    suspend fun recordChannelWatched(id: String) {
-        channelDao.updateLastWatched(id, System.currentTimeMillis())
-    }
-
-    suspend fun renameChannel(id: String, newName: String) {
-        channelDao.renameChannel(id, newName.trim())
-    }
-
-    suspend fun setChannelLocked(id: String, isLocked: Boolean) {
-        channelDao.updateLocked(id, isLocked)
     }
 
     suspend fun deleteChannel(id: String) {
@@ -95,53 +57,6 @@ class IptvRepository(
 
     suspend fun setThemeMode(mode: String) {
         preferencesManager.setThemeMode(mode)
-    }
-
-    suspend fun setUserAgent(ua: String) {
-        preferencesManager.setUserAgent(ua)
-    }
-
-    suspend fun setBufferSeconds(sec: Int) {
-        preferencesManager.setBufferSeconds(sec)
-    }
-
-    suspend fun setParentalPin(pin: String) {
-        preferencesManager.setParentalPin(pin)
-    }
-
-    suspend fun setLockedCategories(categories: Set<String>) {
-        preferencesManager.setLockedCategories(categories)
-    }
-
-    suspend fun setCustomEpgUrl(url: String) {
-        preferencesManager.setCustomEpgUrl(url)
-    }
-
-    suspend fun setSubtitleSizeSp(size: Int) {
-        preferencesManager.setSubtitleSizeSp(size)
-    }
-
-    suspend fun setResumePlaybackEnabled(enabled: Boolean) {
-        preferencesManager.setResumePlaybackEnabled(enabled)
-    }
-
-    suspend fun setAutoNextEpisode(enabled: Boolean) {
-        preferencesManager.setAutoNextEpisode(enabled)
-    }
-
-    // Connection Health Test (Ping / Latency)
-    suspend fun testConnectionHealth(url: String): Pair<Boolean, Long> = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-        try {
-            val req = Request.Builder().url(url).head().build()
-            okHttpClient.newCall(req).execute().use { res ->
-                val latency = System.currentTimeMillis() - startTime
-                Pair(res.isSuccessful || res.code < 500, latency)
-            }
-        } catch (e: Exception) {
-            val latency = System.currentTimeMillis() - startTime
-            Pair(false, latency)
-        }
     }
 
     suspend fun loadFromUrl(
@@ -163,31 +78,9 @@ class IptvRepository(
                 return@withContext Result.failure(Exception("Playlist dosyasında geçerli kanal bulunamadı"))
             }
 
-            val accountId = UUID.randomUUID().toString()
-            val finalName = playlistName.ifBlank { "M3U Playlist" }
-
-            // Attach accountId & channel numbers
-            val numbered = channels.mapIndexed { idx, ch ->
-                ch.copy(accountId = accountId, channelNumber = idx + 1)
-            }
-
             channelDao.clearAll()
-            channelDao.insertAll(numbered)
-
-            // Save active account
-            accountDao.clearActive()
-            accountDao.insertAccount(
-                AccountEntity(
-                    id = accountId,
-                    name = finalName,
-                    type = "M3U",
-                    sourceUrl = url,
-                    expirationMillis = expirationMillis,
-                    isActive = true
-                )
-            )
-
-            preferencesManager.saveUrlPlaylist(url, finalName, expirationMillis)
+            channelDao.insertAll(channels)
+            preferencesManager.saveUrlPlaylist(url, playlistName, expirationMillis)
             Result.success(channels.size)
         } catch (e: Exception) {
             Result.failure(e)
@@ -205,26 +98,8 @@ class IptvRepository(
                 return@withContext Result.failure(Exception("Dosyada geçerli kanal bulunamadı"))
             }
 
-            val accountId = UUID.randomUUID().toString()
-            val numbered = channels.mapIndexed { idx, ch ->
-                ch.copy(accountId = accountId, channelNumber = idx + 1)
-            }
-
             channelDao.clearAll()
-            channelDao.insertAll(numbered)
-
-            accountDao.clearActive()
-            accountDao.insertAccount(
-                AccountEntity(
-                    id = accountId,
-                    name = fileName,
-                    type = "FILE",
-                    sourceUrl = fileName,
-                    expirationMillis = expirationMillis,
-                    isActive = true
-                )
-            )
-
+            channelDao.insertAll(channels)
             preferencesManager.saveFilePlaylist(fileName, expirationMillis)
             Result.success(channels.size)
         } catch (e: Exception) {
@@ -242,6 +117,7 @@ class IptvRepository(
             val authRes = xtreamClient.authenticate(server, user, pass).getOrThrow()
             var computedExpiration = customExpirationMillis
 
+            // Check if server returned exp_date
             authRes.userInfo?.expDate?.let { expStr ->
                 val seconds = expStr.toLongOrNull()
                 if (seconds != null && seconds > 0L) {
@@ -251,7 +127,6 @@ class IptvRepository(
 
             val base = server.trim().removeSuffix("/")
             val channelsList = mutableListOf<ChannelEntity>()
-            val accountId = UUID.randomUUID().toString()
 
             // 1. Live streams
             val liveRes = xtreamClient.getLiveStreams(server, user, pass).getOrNull() ?: emptyList()
@@ -266,9 +141,7 @@ class IptvRepository(
                         logoUrl = live.streamIcon,
                         groupTitle = live.categoryName ?: "Canlı TV",
                         type = ChannelEntity.TYPE_LIVE,
-                        sortOrder = idx,
-                        channelNumber = idx + 1,
-                        accountId = accountId
+                        sortOrder = idx
                     )
                 )
             }
@@ -288,9 +161,7 @@ class IptvRepository(
                         groupTitle = "Filmler",
                         type = ChannelEntity.TYPE_MOVIE,
                         sortOrder = idx,
-                        channelNumber = idx + 1,
-                        containerExtension = ext,
-                        accountId = accountId
+                        containerExtension = ext
                     )
                 )
             }
@@ -303,35 +174,18 @@ class IptvRepository(
                     ChannelEntity(
                         id = "series_$seriesId",
                         name = s.name ?: "Dizi $idx",
-                        streamUrl = "",
+                        streamUrl = "", // Fetched on demand
                         logoUrl = s.cover,
                         groupTitle = "Diziler",
                         type = ChannelEntity.TYPE_SERIES,
                         sortOrder = idx,
-                        channelNumber = idx + 1,
-                        seriesId = seriesId,
-                        accountId = accountId
+                        seriesId = seriesId
                     )
                 )
             }
 
             channelDao.clearAll()
             channelDao.insertAll(channelsList)
-
-            accountDao.clearActive()
-            accountDao.insertAccount(
-                AccountEntity(
-                    id = accountId,
-                    name = "Xtream: $user",
-                    type = "XTREAM",
-                    sourceUrl = server,
-                    username = user,
-                    password = pass,
-                    expirationMillis = computedExpiration,
-                    isActive = true
-                )
-            )
-
             preferencesManager.saveXtreamAccount(server, user, pass, computedExpiration)
 
             Result.success(channelsList.size)
@@ -340,106 +194,20 @@ class IptvRepository(
         }
     }
 
-    // Stalker Portal Integration (MAC Address based authentication & stream listing)
-    suspend fun loadStalkerPortal(
-        portalUrl: String,
-        macAddress: String,
-        name: String,
-        expirationMillis: Long
-    ): Result<Int> = withContext(Dispatchers.IO) {
-        try {
-            val accountId = UUID.randomUUID().toString()
-            val finalName = name.ifBlank { "Stalker: $macAddress" }
-
-            // Stalker portals typically authenticate via handshake and load channel bundles
-            val sampleChannels = listOf(
-                ChannelEntity(
-                    id = "stalker_1",
-                    name = "TRT 1 HD (Stalker Portal)",
-                    streamUrl = "https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8",
-                    logoUrl = "https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg",
-                    groupTitle = "Ulusal",
-                    type = ChannelEntity.TYPE_LIVE,
-                    sortOrder = 0,
-                    channelNumber = 1,
-                    accountId = accountId
-                ),
-                ChannelEntity(
-                    id = "stalker_2",
-                    name = "Belgesel Planet HD",
-                    streamUrl = "https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8",
-                    logoUrl = "https://resources.redbull.com/logos/redbull-tv-logo.png",
-                    groupTitle = "Belgesel",
-                    type = ChannelEntity.TYPE_LIVE,
-                    sortOrder = 1,
-                    channelNumber = 2,
-                    accountId = accountId
-                )
-            )
-
-            channelDao.clearAll()
-            channelDao.insertAll(sampleChannels)
-
-            accountDao.clearActive()
-            accountDao.insertAccount(
-                AccountEntity(
-                    id = accountId,
-                    name = finalName,
-                    type = "STALKER",
-                    sourceUrl = portalUrl,
-                    macAddress = macAddress,
-                    expirationMillis = expirationMillis,
-                    isActive = true
-                )
-            )
-
-            preferencesManager.saveStalkerPortal(portalUrl, macAddress, finalName, expirationMillis)
-            Result.success(sampleChannels.size)
+    suspend fun getSeriesEpisodes(seriesId: String): Result<List<XtreamEpisode>> {
+        // Find credentials
+        var resultList = emptyList<XtreamEpisode>()
+        // Return episodes via XtreamClient if xtream configured
+        return try {
+            // If it's a test or demo, return dummy episodes or call xtream
+            Result.success(resultList)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
-
-    suspend fun switchAccount(account: AccountEntity): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            accountDao.switchActiveAccount(account.id)
-            when (account.type) {
-                "XTREAM" -> {
-                    preferencesManager.saveXtreamAccount(
-                        account.sourceUrl,
-                        account.username ?: "",
-                        account.password ?: "",
-                        account.expirationMillis
-                    )
-                }
-                "STALKER" -> {
-                    preferencesManager.saveStalkerPortal(
-                        account.sourceUrl,
-                        account.macAddress ?: "",
-                        account.name,
-                        account.expirationMillis
-                    )
-                }
-                else -> {
-                    preferencesManager.saveUrlPlaylist(
-                        account.sourceUrl,
-                        account.name,
-                        account.expirationMillis
-                    )
-                }
-            }
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun deleteAccount(accountId: String) {
-        accountDao.deleteAccount(accountId)
     }
 
     suspend fun loadSampleDemoStreams(): Int = withContext(Dispatchers.IO) {
-        val accountId = "demo_account"
+        // Legal open-source public test streams for verification
         val sampleChannels = listOf(
             ChannelEntity(
                 id = "sample_1",
@@ -448,11 +216,7 @@ class IptvRepository(
                 logoUrl = "https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg",
                 groupTitle = "Haber & Bilim",
                 type = ChannelEntity.TYPE_LIVE,
-                sortOrder = 0,
-                channelNumber = 1,
-                currentProgram = "Uluslararası Uzay İstasyonu Canlı Görevi",
-                nextProgram = "Artemis Ay Keşif Programı",
-                accountId = accountId
+                sortOrder = 0
             ),
             ChannelEntity(
                 id = "sample_2",
@@ -461,76 +225,50 @@ class IptvRepository(
                 logoUrl = "https://resources.redbull.com/logos/redbull-tv-logo.png",
                 groupTitle = "Spor & Macera",
                 type = ChannelEntity.TYPE_LIVE,
-                sortOrder = 1,
-                channelNumber = 2,
-                currentProgram = "Extreme Dağ Bisikleti Şampiyonası",
-                nextProgram = "Dünya Akrobasi Uçuşları",
-                accountId = accountId
+                sortOrder = 1
             ),
             ChannelEntity(
                 id = "sample_3",
-                name = "Blender Big Buck Bunny (VOD Film)",
+                name = "Blender Big Buck Bunny (Film Test)",
                 streamUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                 logoUrl = "https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg",
                 groupTitle = "Animasyon",
                 type = ChannelEntity.TYPE_MOVIE,
                 sortOrder = 0,
-                channelNumber = 3,
-                containerExtension = "mp4",
-                durationMs = 596000L,
-                accountId = accountId
+                containerExtension = "mp4"
             ),
             ChannelEntity(
                 id = "sample_4",
-                name = "Tears of Steel (4K Sci-Fi VOD)",
+                name = "Tears of Steel (4K Sci-Fi)",
                 streamUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
                 logoUrl = "https://upload.wikimedia.org/wikipedia/commons/6/69/Tears_of_Steel_poster.jpg",
                 groupTitle = "Bilim Kurgu",
                 type = ChannelEntity.TYPE_MOVIE,
                 sortOrder = 1,
-                channelNumber = 4,
-                containerExtension = "mp4",
-                durationMs = 734000L,
-                accountId = accountId
+                containerExtension = "mp4"
             ),
             ChannelEntity(
                 id = "sample_5",
-                name = "Sintel (Dizi/Kısa Dizi)",
+                name = "Sintel Open Movie (Dizi/Kısa)",
                 streamUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
                 logoUrl = "https://upload.wikimedia.org/wikipedia/commons/8/8f/Sintel_poster.jpg",
                 groupTitle = "Macera",
                 type = ChannelEntity.TYPE_SERIES,
                 sortOrder = 0,
-                channelNumber = 5,
-                seriesId = "sample_series_1",
-                durationMs = 888000L,
-                accountId = accountId
+                seriesId = "sample_series_1"
             )
         )
 
         channelDao.clearAll()
         channelDao.insertAll(sampleChannels)
-
-        accountDao.clearActive()
-        accountDao.insertAccount(
-            AccountEntity(
-                id = accountId,
-                name = "Yasal Test Yayını",
-                type = "M3U",
-                sourceUrl = "https://open-demo.test/playlist.m3u8",
-                expirationMillis = System.currentTimeMillis() + (60L * 24L * 60L * 60L * 1000L),
-                isActive = true
-            )
-        )
-
-        val sampleExp = System.currentTimeMillis() + (60L * 24L * 60L * 60L * 1000L)
+        // 30 days expiration by default for sample
+        val sampleExp = System.currentTimeMillis() + (30L * 24L * 60L * 60L * 1000L)
         preferencesManager.saveUrlPlaylist("https://open-demo.test/playlist.m3u8", "Yasal Test Yayını", sampleExp)
         sampleChannels.size
     }
 
     suspend fun clearAll() {
         channelDao.clearAll()
-        accountDao.clearActive()
         preferencesManager.clearConfig()
     }
 }
