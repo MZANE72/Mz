@@ -1,8 +1,12 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -29,16 +33,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay30
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,6 +65,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -98,11 +113,23 @@ data class SubtitleTrackInfo(
     val isSelected: Boolean
 )
 
+data class AudioTrackInfo(
+    val trackGroup: TrackGroup,
+    val trackIndex: Int,
+    val language: String,
+    val label: String,
+    val isSelected: Boolean
+)
+
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
     channel: ChannelEntity,
     onClose: () -> Unit,
+    onNextChannel: (() -> Unit)? = null,
+    onPrevChannel: (() -> Unit)? = null,
+    onRecallChannel: (() -> Unit)? = null,
+    onSaveResumePosition: ((channelId: String, positionMs: Long, durationMs: Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -124,17 +151,29 @@ fun PlayerScreen(
         )
     }
 
-    // Orientation state: 0: Auto/Sensor, 1: Landscape, 2: Portrait
-    var currentOrientationMode by remember { mutableIntStateOf(1) } // Default landscape for immersive IPTV
+    // Orientation state: 1: Landscape, 2: Portrait
+    var currentOrientationMode by remember { mutableIntStateOf(1) } // Default landscape
 
     // Progress and duration for Movies/Series
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     val isVod = channel.type == ChannelEntity.TYPE_MOVIE || channel.type == ChannelEntity.TYPE_SERIES
 
-    // Subtitle tracks dialog
+    // Resume position prompt
+    var showResumePrompt by remember {
+        mutableStateOf(isVod && channel.resumePositionMs > 15000L && channel.resumePositionMs < (channel.durationMs - 20000L))
+    }
+
+    // Subtitle & Audio tracks dialogs
     var showSubtitleDialog by remember { mutableStateOf(false) }
     var availableSubtitles by remember { mutableStateOf<List<SubtitleTrackInfo>>(emptyList()) }
+
+    var showAudioDialog by remember { mutableStateOf(false) }
+    var availableAudioTracks by remember { mutableStateOf<List<AudioTrackInfo>>(emptyList()) }
+
+    // Playback speed
+    var currentSpeed by remember { mutableFloatStateOf(1.0f) }
+    var showSpeedDialog by remember { mutableStateOf(false) }
 
     // Setup ExoPlayer
     val exoPlayer = remember {
@@ -154,6 +193,7 @@ fun PlayerScreen(
 
     // Back handler resets orientation to unspecified
     BackHandler {
+        onSaveResumePosition?.invoke(channel.id, currentPositionMs, durationMs)
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         onClose()
     }
@@ -196,6 +236,8 @@ fun PlayerScreen(
             override fun onTracksChanged(tracks: Tracks) {
                 // Extract subtitle tracks
                 val subs = mutableListOf<SubtitleTrackInfo>()
+                val audios = mutableListOf<AudioTrackInfo>()
+
                 for (group in tracks.groups) {
                     if (group.type == C.TRACK_TYPE_TEXT) {
                         for (i in 0 until group.length) {
@@ -212,15 +254,32 @@ fun PlayerScreen(
                                 )
                             )
                         }
+                    } else if (group.type == C.TRACK_TYPE_AUDIO) {
+                        for (i in 0 until group.length) {
+                            val format = group.getTrackFormat(i)
+                            val lang = format.language ?: "Varsayılan"
+                            val label = format.label ?: "Ses Parçası ${audios.size + 1} ($lang)"
+                            audios.add(
+                                AudioTrackInfo(
+                                    trackGroup = group.mediaTrackGroup,
+                                    trackIndex = i,
+                                    language = lang,
+                                    label = label,
+                                    isSelected = group.isTrackSelected(i)
+                                )
+                            )
+                        }
                     }
                 }
                 availableSubtitles = subs
+                availableAudioTracks = audios
             }
         }
 
         exoPlayer.addListener(listener)
 
         onDispose {
+            onSaveResumePosition?.invoke(channel.id, currentPositionMs, durationMs)
             exoPlayer.removeListener(listener)
             exoPlayer.release()
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -239,7 +298,7 @@ fun PlayerScreen(
     // Auto-hide controls timer
     LaunchedEffect(isControlsVisible) {
         if (isControlsVisible) {
-            delay(5000L)
+            delay(6000L)
             isControlsVisible = false
         }
     }
@@ -273,7 +332,7 @@ fun PlayerScreen(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
-                    useController = false // Custom Compose Controls
+                    useController = false
                     resizeMode = resizeModes[resizeModeIndex].first
                 }
             },
@@ -337,6 +396,7 @@ fun PlayerScreen(
                             Text("Tekrar Dene", color = CyanPrimary, fontWeight = FontWeight.Bold)
                         }
                         TextButton(onClick = {
+                            onSaveResumePosition?.invoke(channel.id, currentPositionMs, durationMs)
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                             onClose()
                         }) {
@@ -345,6 +405,37 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+
+        // Resume Playback Prompt Modal
+        if (showResumePrompt) {
+            AlertDialog(
+                onDismissRequest = { showResumePrompt = false },
+                containerColor = DarkSurface,
+                title = { Text("Kaldığınız Yerden Devam Edin", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                text = {
+                    Text(
+                        text = "Bu içeriği daha önce ${formatDuration(channel.resumePositionMs)} dakikasına kadar izlediniz. Kaldığınız yerden devam etmek ister misiniz?",
+                        color = TextSecondary
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            exoPlayer.seekTo(channel.resumePositionMs)
+                            currentPositionMs = channel.resumePositionMs
+                            showResumePrompt = false
+                        }
+                    ) {
+                        Text("Devam Et (${formatDuration(channel.resumePositionMs)})")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResumePrompt = false }) {
+                        Text("Baştan Başla", color = TextMuted)
+                    }
+                }
+            )
         }
 
         // CONTROLS OVERLAY
@@ -359,7 +450,7 @@ fun PlayerScreen(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Black.copy(alpha = 0.75f),
+                                Color.Black.copy(alpha = 0.8f),
                                 Color.Transparent,
                                 Color.Black.copy(alpha = 0.85f)
                             )
@@ -367,7 +458,7 @@ fun PlayerScreen(
                     )
                     .padding(16.dp)
             ) {
-                // TOP BAR: Back, Channel info, Live Clock, Aspect Ratio, Orientation
+                // TOP BAR: Back, Channel info, Live Clock, Aspect Ratio, Orientation, PiP, External Player
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -382,12 +473,14 @@ fun PlayerScreen(
                     ) {
                         IconButton(
                             onClick = {
+                                onSaveResumePosition?.invoke(channel.id, currentPositionMs, durationMs)
                                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                                 onClose()
                             },
                             modifier = Modifier
                                 .size(42.dp)
                                 .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .testTag("player_back_button")
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -397,29 +490,86 @@ fun PlayerScreen(
                         }
 
                         Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (channel.channelNumber > 0) {
+                                    Text(
+                                        text = "#${channel.channelNumber} ",
+                                        color = CyanPrimary,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    text = channel.name,
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                             Text(
-                                text = channel.name,
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "${channel.groupTitle} • ${if (isVod) "İçerik" else "Canlı Yayın"}",
+                                text = "${channel.groupTitle} • ${if (isVod) "VOD İçerik" else "Canlı Yayın"}",
                                 color = CyanPrimary,
                                 fontSize = 12.sp
                             )
                         }
                     }
 
-                    // Top Right Action Buttons: Clock, Aspect Ratio, Orientation Toggle
+                    // Top Right Actions
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Live Clock with seconds & date in player
+                        // Live Clock with seconds & date
                         LiveClock(compact = true, showDate = true)
+
+                        // External Player Launcher (VLC / MX Player)
+                        IconButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(Uri.parse(channel.streamUrl), "video/*")
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                try {
+                                    context.startActivity(Intent.createChooser(intent, "Harici Oynatıcı Seçin"))
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .testTag("external_player_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInNew,
+                                contentDescription = "Harici Oynatıcı",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Picture in Picture (PiP)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            IconButton(
+                                onClick = {
+                                    try {
+                                        val pipParams = PictureInPictureParams.Builder().build()
+                                        activity?.enterPictureInPictureMode(pipParams)
+                                    } catch (_: Exception) {}
+                                },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                    .testTag("pip_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureInPictureAlt,
+                                    contentDescription = "Resim İçinde Resim (PiP)",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
 
                         // Aspect Ratio Toggle
                         IconButton(
@@ -438,12 +588,12 @@ fun PlayerScreen(
                             )
                         }
 
-                        // Yatay / Dikey İzleme Seçeneği (Orientation Switcher)
+                        // Orientation Switcher (Yatay / Dikey)
                         IconButton(
                             onClick = {
                                 currentOrientationMode = when (currentOrientationMode) {
-                                    1 -> 2 // Switch from Landscape to Portrait
-                                    2 -> 1 // Switch from Portrait to Landscape
+                                    1 -> 2
+                                    2 -> 1
                                     else -> 1
                                 }
                             },
@@ -462,14 +612,34 @@ fun PlayerScreen(
                     }
                 }
 
-                // CENTER CONTROLS: -10s Rewind, Play/Pause, +10s Fast-Forward
+                // CENTER CONTROLS: Zapping / 10s-30s Rewind, Play/Pause, Forward
                 Row(
                     modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // -10 Saniye İleri/Geri Özelliği
                     if (isVod) {
+                        // 30s Rewind
+                        IconButton(
+                            onClick = {
+                                val newPos = (exoPlayer.currentPosition - 30000L).coerceAtLeast(0L)
+                                exoPlayer.seekTo(newPos)
+                                currentPositionMs = newPos
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                .testTag("rewind_30s_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Replay30,
+                                contentDescription = "30s Geri",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        // 10s Rewind
                         IconButton(
                             onClick = {
                                 val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
@@ -483,9 +653,25 @@ fun PlayerScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Replay10,
-                                contentDescription = "10 Saniye Geri",
+                                contentDescription = "10s Geri",
                                 tint = Color.White,
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(34.dp)
+                            )
+                        }
+                    } else if (onPrevChannel != null) {
+                        // Channel Down Zapping
+                        IconButton(
+                            onClick = { onPrevChannel() },
+                            modifier = Modifier
+                                .size(54.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                .testTag("channel_prev_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SkipPrevious,
+                                contentDescription = "Önceki Kanal",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
                     }
@@ -512,8 +698,8 @@ fun PlayerScreen(
                         )
                     }
 
-                    // +10 Saniye İleri/Geri Özelliği
                     if (isVod) {
+                        // 10s Forward
                         IconButton(
                             onClick = {
                                 val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
@@ -527,15 +713,51 @@ fun PlayerScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Forward10,
-                                contentDescription = "10 Saniye İleri",
+                                contentDescription = "10s İleri",
                                 tint = Color.White,
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(34.dp)
+                            )
+                        }
+
+                        // 30s Forward
+                        IconButton(
+                            onClick = {
+                                val newPos = (exoPlayer.currentPosition + 30000L).coerceAtMost(durationMs)
+                                exoPlayer.seekTo(newPos)
+                                currentPositionMs = newPos
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                .testTag("forward_30s_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Forward30,
+                                contentDescription = "30s İleri",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    } else if (onNextChannel != null) {
+                        // Channel Up Zapping
+                        IconButton(
+                            onClick = { onNextChannel() },
+                            modifier = Modifier
+                                .size(54.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                .testTag("channel_next_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SkipNext,
+                                contentDescription = "Sonraki Kanal",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
                     }
                 }
 
-                // BOTTOM CONTROLS: Scrubber bar (for movies/series), Audio toggle, Subtitle selector (Alt yazı)
+                // BOTTOM CONTROLS: Scrubber bar, Recall, Audio track, Subtitle, Speed
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -578,7 +800,7 @@ fun PlayerScreen(
                         }
                     }
 
-                    // Bottom info bar with Audio mute toggle and Subtitle button
+                    // Bottom info bar
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -604,18 +826,76 @@ fun PlayerScreen(
                                 )
                             }
 
-                            Text(
-                                text = resizeModes[resizeModeIndex].second,
-                                color = TextMuted,
-                                fontSize = 12.sp
-                            )
+                            // Recall (Son Kanal) in live TV mode
+                            if (!isVod && onRecallChannel != null) {
+                                IconButton(
+                                    onClick = { onRecallChannel() },
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .testTag("recall_channel_button")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.History,
+                                            contentDescription = "Son Kanal",
+                                            tint = CyanPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text("Son Kanal", color = CyanPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
                         }
 
-                        // Alt Yazı Seçeneği (Subtitles)
+                        // Right actions: Speed, Audio Track, Subtitle
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            // Playback Speed (Hız)
+                            if (isVod) {
+                                IconButton(
+                                    onClick = { showSpeedDialog = true },
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .testTag("speed_button")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Icon(Icons.Default.Speed, contentDescription = "Hız", tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Text("${currentSpeed}x", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+
+                            // Audio Track Selector (Ses Parçası)
+                            IconButton(
+                                onClick = { showAudioDialog = true },
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.5f))
+                                    .testTag("audio_track_button")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(Icons.Default.Audiotrack, contentDescription = "Ses Kanalı", tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Text("Ses", color = Color.White, fontSize = 11.sp)
+                                }
+                            }
+
+                            // Subtitles (Alt Yazı)
                             IconButton(
                                 onClick = { showSubtitleDialog = true },
                                 modifier = Modifier
@@ -632,12 +912,12 @@ fun PlayerScreen(
                                         imageVector = Icons.Default.ClosedCaption,
                                         contentDescription = "Alt Yazı",
                                         tint = if (availableSubtitles.any { it.isSelected }) CyanPrimary else Color.White,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                     Text(
                                         text = "Alt Yazı",
                                         color = if (availableSubtitles.any { it.isSelected }) CyanPrimary else Color.White,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -646,6 +926,99 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+
+        // Playback Speed Dialog
+        if (showSpeedDialog) {
+            val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+            AlertDialog(
+                onDismissRequest = { showSpeedDialog = false },
+                containerColor = DarkSurface,
+                title = { Text("Oynatma Hızı", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        speedOptions.forEach { speed ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        currentSpeed = speed
+                                        exoPlayer.setPlaybackSpeed(speed)
+                                        showSpeedDialog = false
+                                    },
+                                color = if (currentSpeed == speed) CyanPrimary.copy(alpha = 0.15f) else Color.Transparent
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("${speed}x ${if (speed == 1.0f) "(Normal)" else ""}", color = if (currentSpeed == speed) CyanPrimary else TextPrimary)
+                                    if (currentSpeed == speed) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = CyanPrimary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showSpeedDialog = false }) {
+                        Text("Kapat", color = CyanPrimary)
+                    }
+                }
+            )
+        }
+
+        // Audio Track Selection Dialog
+        if (showAudioDialog) {
+            AlertDialog(
+                onDismissRequest = { showAudioDialog = false },
+                containerColor = DarkSurface,
+                title = { Text("Ses Kanalı Seçimi", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (availableAudioTracks.isEmpty()) {
+                            Text("Bu yayında tek bir varsayılan ses kanalı bulunmaktadır.", color = TextMuted, fontSize = 13.sp)
+                        } else {
+                            availableAudioTracks.forEach { audio ->
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                                .buildUpon()
+                                                .setOverrideForType(
+                                                    TrackSelectionOverride(audio.trackGroup, audio.trackIndex)
+                                                )
+                                                .build()
+                                            showAudioDialog = false
+                                        },
+                                    color = if (audio.isSelected) CyanPrimary.copy(alpha = 0.15f) else Color.Transparent
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("${audio.label} (${audio.language})", color = if (audio.isSelected) CyanPrimary else TextPrimary)
+                                        if (audio.isSelected) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = CyanPrimary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAudioDialog = false }) {
+                        Text("Kapat", color = CyanPrimary)
+                    }
+                }
+            )
         }
 
         // Subtitle Selection Modal Dialog
@@ -667,7 +1040,6 @@ fun PlayerScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Option 1: Off / Kapalı
                         val isNoneSelected = availableSubtitles.none { it.isSelected }
                         Surface(
                             modifier = Modifier

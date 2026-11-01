@@ -61,6 +61,9 @@ class MainActivity : ComponentActivity() {
                                 onLoadDemoStreams = {
                                     viewModel.loadDemoStreams()
                                 },
+                                onLoadStalker = { portalUrl, mac, name, exp ->
+                                    viewModel.loadStalkerPortal(portalUrl, mac, name, exp)
+                                },
                                 themeMode = config.themeMode,
                                 onToggleTheme = {
                                     viewModel.setThemeMode(

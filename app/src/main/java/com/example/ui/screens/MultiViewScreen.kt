@@ -7,10 +7,12 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -158,11 +160,27 @@ fun MultiViewScreen(
                     }
                 }
 
-                // Controls: 2-Channel / 4-Channel mode switcher and Live Clock
+                // Controls: 2-Channel / 4-Channel mode switcher, Hint, and Live Clock
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Long press hint badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF1B2434))
+                            .border(1.dp, Color(0xFF2E3E58), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "💡 Basılı Tut: Kanal Seç",
+                            color = CyanPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
                     LiveClock(compact = true, showDate = false)
 
                     // 2-Kanal Modu Butonu
@@ -512,7 +530,12 @@ private fun MultiViewPane(
                 color = if (isActiveAudio) CyanPrimary else DarkCardBorder,
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable(onClick = onTap)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onTap() },
+                    onLongPress = { onChangeChannel() }
+                )
+            }
             .testTag("multiview_slot_$slotIndex")
     ) {
         if (channel != null) {
@@ -522,12 +545,26 @@ private fun MultiViewPane(
                         player = exoPlayer
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        isClickable = false
+                        isFocusable = false
                     }
                 },
                 update = { view ->
                     view.player = exoPlayer
                 },
                 modifier = Modifier.fillMaxSize()
+            )
+
+            // Transparent overlay to reliably capture tap (unmute) and long-press (select channel)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { onTap() },
+                            onLongPress = { onChangeChannel() }
+                        )
+                    }
             )
         } else {
             // Empty slot placeholder

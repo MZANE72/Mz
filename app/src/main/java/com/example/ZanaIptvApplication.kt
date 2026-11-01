@@ -20,6 +20,6 @@ class ZanaIptvApplication : Application() {
         super.onCreate()
         database = AppDatabase.getDatabase(this)
         preferencesManager = PreferencesManager(this)
-        repository = IptvRepository(database.channelDao(), preferencesManager)
+        repository = IptvRepository(database.channelDao(), database.accountDao(), preferencesManager)
     }
 }
